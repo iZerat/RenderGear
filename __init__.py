@@ -12,10 +12,9 @@ bl_info = {
 
 import bpy
 import os
-import subprocess
 from bpy.props import EnumProperty, BoolProperty, StringProperty, IntProperty, FloatProperty
 
-def cmd_Run(self, context):
+def cmd_Run():
 
     # 当前 blender 工程文件的路径
     file_path1 = bpy.data.filepath
@@ -24,33 +23,26 @@ def cmd_Run(self, context):
     # 导出路径
     export_path1 = bpy.data.scenes["Scene"].render.filepath
     export_path2 = export_path1.replace("\\","\\\\")
-    engine = context.preferences.addons["cycles"].preferences.compute_device_type
-      
+
+    # 存放命令  
     orders =[
         "start blender -b",
-        "D:\\testRender\\testRender.blend",
+        file_path2,
         "-E",
         "BLENDER_EEVEE",
         "-o",
     ]
 
     # 输入导出路径
-    command.append(export_path2)
+    orders.append(export_path2)
 
     # 渲染以上所有
-    command.append('-a')
+    orders.append('-a')
 
     # 将列表转换成用于命令的字符串
-    command = ' '.join(orders)
+    return ' '.join(orders)
 
-    os.system(command)
-
-
-
-
-
-
-
+ 
 
 # 侧边栏
 class RenderingGear_OperatorUI(bpy.types.Panel):
@@ -79,7 +71,8 @@ class RenderingGear_Operator(bpy.types.Operator):
     # 执行的内容
     def execute(self, context):
         
-        cmd_Run(self, context)
+        command = cmd_Run()
+        os.system(command)
         # os.system("shutdown -s -t 60")
         return {'FINISHED'}
 
