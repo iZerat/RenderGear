@@ -8,31 +8,151 @@ bl_info = {
     "warning" : "",
     "category" : "Render"
 }
-0
 
 import bpy
 import os
-from bpy.props import EnumProperty, BoolProperty, StringProperty, IntProperty, FloatProperty, PointerProperty
+import subprocess
+from bpy.props import EnumProperty, BoolProperty, StringProperty, IntProperty, FloatProperty, PointerProperty, CollectionProperty
+from bpy.types import PropertyGroup, UIList, Operator, Panel
 
 
-class MyItem(bpy.types.PropertyGroup):
-    name:bpy.props.StringProperty(name = "name", default = "")
-    data:bpy.props.StringProperty(name = "name", default = "")
-
-
-
-# 定义属性类
+# 定义属性函数
 def My_Properties():
 
     # list 数据
-    bpy.types.Scene.myList = bpy.props.CollectionProperty(type = MyItem)
+    bpy.types.Scene.my_list = CollectionProperty(type = MyItem)
 
     # 当前选中的下标
-    bpy.types.Scene.active_index = bpy.props.IntProperty(name = "current index", default = 0, min = 0)
+    bpy.types.Scene.active_index = bpy.props.IntProperty(name = "Index for my_list", default = 0)
+
+    bpy.types.Scene.power_off_bool = bpy.props.BoolProperty(
+        name="Powwer off Bool",
+        description="Boolean value used to determine whether to shut down",
+        default= False
+    )
+
+class MyItem(PropertyGroup):
+
+    my_item_name:StringProperty(
+        name = "my_item_name",
+        default = "未设置队列"
+        )
+    
+    start_frame:IntProperty(
+        name = "start_frame",
+        default = 0,
+        min = 0
+        )
+    
+    end_frame:IntProperty(
+        name = "end_frame",
+        default = 0,
+        min = 0
+        )
 
 
 
+# 定义队列
+class RenderingGear_UL_Queue(bpy.types.UIList):
+    def draw_item(self, context, layout, data, item, icon_value, active_data, active_propname, index):
 
+        custom_icon = "DOCUMENTS"
+
+        # 三种显示模式: 'DEFAULT', 'COMPACT', 'GRID'
+        if self.layout_type in {'DEFAULT', 'COMPACT'}:
+            layout.label(text = "帧：" + str(item.start_frame) + " - " + str(item.end_frame), translate = False, icon = custom_icon)
+
+        elif self.layout_type in {'GRID'}:
+            layout.alignment = 'CENTER'
+            layout.label(text = "", icon = custom_icon)
+
+
+# 添加新的队列
+class RenderingGear_OT_CreateItem(bpy.types.Operator):
+    bl_idname = 'iz.rendering_create_item'
+    bl_label = 'RenderingGearCreateItem'
+
+
+    def execute(self, context):
+
+        context.scene.my_list.add()
+
+        return{'FINISHED'}
+
+
+# 删除所选队列
+class RenderingGear_OT_DeleteItem(bpy.types.Operator):
+    bl_idname = 'iz.rendering_delete_item'
+    bl_label = 'RenderingGearDeleteItem'
+
+    @classmethod
+    def poll(cls, context):
+        if context.scene.my_list:
+            return context.scene.my_list
+
+        return False
+
+    def execute(self, context):   
+        # 从scene接收collection和list_index
+        my_list = context.scene.my_list
+        index = context.scene.active_index
+
+        # 删除项，更改当前选择项索引
+        my_list.remove(index)
+
+        # 重新更新队列
+        context.scene.active_index = min(max(0, index - 1), len(my_list) - 1)
+
+        return {'FINISHED'}
+    
+# 一键清空所有队列
+class RenderingGear_OT_ClearItem(bpy.types.Operator):
+    bl_idname = 'iz.rendering_clear_item'
+    bl_label = 'RenderingGearClearItem'
+
+    def execute(self, context):
+        bpy.context.scene.my_list.clear()
+        return{'FINISHED'}
+
+# 移动队列
+class RenderingGear_OT_MoveItem(bpy.types.Operator):
+    bl_idname = 'iz.rendering_move_item'
+    bl_label = 'RenderingGearMoveItem'
+
+    # 控制移动的方向
+    
+    items = [
+        ("UP",'up','',1),
+        ("DOWN",'down','',2)
+    ]
+
+    # 控制移动方向
+    direction: bpy.props.EnumProperty(items = items)
+
+    @classmethod
+    def poll(cls, context):
+        return True
+    
+
+    
+    def execute(self, context):
+
+        # 当前所选的编号
+        active_index = context.scene.active_index
+
+        # 目标编号
+        neighbor_index = context.scene.active_index + (-1 if self.direction == "UP" else 1)
+
+        # 交换数据
+        context.scene.my_list.move(active_index, neighbor_index)
+
+        # 更新下标
+        context.scene.active_index = neighbor_index
+
+        return{'FINISHED'}
+
+
+# 管理命令
 def cmd_Run():
 
     # 当前 blender 工程文件的路径
@@ -43,43 +163,91 @@ def cmd_Run():
     export_pathA = bpy.data.scenes["Scene"].render.filepath
     export_pathB = export_pathA.replace("\\","\\\\")
 
-    # 存放命令  
-    orders =[
-        "start blender -b",
-        file_pathB,
-        "-E",
-        "BLENDER_EEVEE",
+    # 词集合  
+    words =[
+        "start", # 多一层终端
+        "blender -b", # 启动 Blneder 并让它在后台运行
+        file_pathB, # 填入导出路径
+        "-E", # 渲染引擎
+        bpy.context.scene.render.engine, # 选择用哪个渲染引擎
         "-o",
     ]
 
     # 输入导出路径
-    orders.append(export_pathB)
+    words.append(export_pathB)
 
     # 渲染以上所有
-    orders.append('-a')
+    words.append('-a')
 
-    # 将列表转换成用于命令的字符串
-    return ' '.join(orders)
+    # 将列表里的词组成一行命令
+    sentence = ' '.join(words)
+
+    return sentence
+
+def GoRendering():
+    command = cmd_Run()
+    os.system(command) # 给终端打命令
+    return 1
+
+def power_off():
+    if bpy.context.scene.power_off_bool == True:
+        os.system("shutdown -r -t 600")
 
 
 
 # 侧边栏
-class RenderingGear_OperatorUI(bpy.types.Panel):
+class RenderingGear_PT_OperatorUI(bpy.types.Panel):
     bl_idname = 'iz.rendering_gear_ui'
-    bl_label = '后台自动渲染'
+    bl_label = '后台自动队列渲染'
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = '（ : '
 
     def draw(self, context):
         
+        scene = context.scene
         layout = self.layout
-        row1 = layout.row()
-        row1.label(text='*** 这是个标签 *** ')
+
+
+        row = layout.row()
+        row.label(text = "渲染队列")
+
+        row = layout.row()
+        row.operator("iz.rendering_clear_item", text = "清空列表", icon = "TRASH")
         
+        # 显示列表
+        row = layout.row()
+        row.template_list("RenderingGear_UL_Queue", "", scene, "my_list", scene, "active_index")
+
+        # 位于右侧创建「添加」按钮
+        subcol = row.column()
+        subcol.operator("iz.rendering_create_item", text = "", icon = "ADD")
+
+        # 位于右侧创建「删除」按钮
+        subcol.operator("iz.rendering_delete_item", text = "", icon = "REMOVE")
+
+        subcol.operator("iz.rendering_move_item", text = "", icon = "TRIA_UP").direction = "UP"
+
+        subcol.operator("iz.rendering_move_item", text = "", icon = "TRIA_DOWN").direction = "DOWN"
+        
+
+        if scene.active_index >= 0 and scene.my_list:
+            item = scene.my_list[scene.active_index]
+            row = layout.row()
+            row.prop(item, "start_frame", text = "开始帧")
+            row.prop(item, "end_frame", text = "结束帧")
+
+        # 创建一个列来放置单选框
+        col = layout.column()
+
+        # 添加一个布尔属性，并将其绑定到单选框
+        col.prop(context.scene, "power_off_bool", text = " 渲染完成后关机")
+
         # 按钮
-        row2 = layout.row()
-        row2.operator("iz.rendering_gear1", text='开始渲染', icon='DRIVER')
+        row = layout.row()
+        row.operator("iz.rendering_gear1", text = "渲染所有", icon = "CONSOLE")
+
+        pass
 
         
 
@@ -90,108 +258,30 @@ class RenderingGear_OT_Operator1(bpy.types.Operator):
     bl_label = 'RenderingGearOperator1'
 
     # 执行的内容
-    def execute(self, context):         
+    def execute(self, context): 
+
         command = cmd_Run()
-        os.system(command) # 给终端打命令
+        # os.system(command) # 给终端打命令
+
+        subprocess.check_output(command, shell=True)
+        
         return {'FINISHED'}
-
-
-
-
-
-
-# 创建队列
-class RenderingGear_OT_CreateItem(bpy.types.Operator):
-    bl_idname = 'iz.rendering_createitem'
-    bl_label = 'RenderingGearCreateItem'
-
-    @classmethod
-    def poll(cls, context):
-        return True
-
-
-    # 执行的内容
-    def execute(self, context):         
-
-        return {'FINISHED'}
-
-# 删除队列
-class RenderingGear_OT_DeleteItem(bpy.types.Operator):
-    bl_idname = 'iz.rendering_deleteitem'
-    bl_label = 'RenderingGearDeleteItem'
-
-    @classmethod
-    def poll(cls, context):
-        return True
     
-    # 执行的内容
-    def execute(self, context):         
 
-        return {'FINISHED'}
-
-# 移动队列
-class RenderingGear_OT_MoveItem(bpy.types.Operator):
-    bl_idname = 'iz.rendering_moveitem'
-    bl_label = 'RenderingGearMoveItem'
-
-    @classmethod
-    def poll(cls, context):
-        return True
-    
-    # 执行的内容
-    def execute(self, context):         
-
-        return {'FINISHED'}
-
-# 自定义uilist
-class RenderingGear_UL_Queue(bpy.types.UIList):
-    def draw_item(self, context, layout, data, item, icon_value, active_data, active_propname, index):
-
-        icon = "BLENDER"
-
-        # 三种显示模式: 'DEFAULT', 'COMPACT', 'GRID'
-        if self.layout_type in {'DEFAULT', 'COMPACT'}:
-            layout.label(text = "", translate = False, icon = icon)
-
-        elif self.layout_type in {'GRID'}:
-            layout.alignment = 'CENTER'
-            layout.label(text = "", icon = icon)
-
-        pass
-
-# 显示队列
-class RenderingGear_PT_Queue(bpy.types.Panel):
-    bl_idname = 'iz.rendering_queue'
-    bl_label = 'RenderingGearQueue'
-
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_category = 'UIList'
-
-    def draw(self, context):
-        layout = self.layout
-
-        scene = context.scene
-
-        row1 = layout.row()
-
-        row1.template_list("RenderingGear_UL_Queue", "test list", scene, "myList", scene, "active_index")
-        pass
-
-
-
-
-# 注册与注销
-
+# 需要注册的类
 classes = [
     MyItem,
-    RenderingGear_OperatorUI,
+    RenderingGear_UL_Queue,
     RenderingGear_OT_Operator1,
     RenderingGear_OT_CreateItem,
+    RenderingGear_OT_DeleteItem,
+    RenderingGear_OT_ClearItem,
     RenderingGear_OT_MoveItem,
-    RenderingGear_UL_Queue,
-    RenderingGear_PT_Queue
+    RenderingGear_PT_OperatorUI,
+   
 ]
+
+# 注册
 def register():
     for item in classes:
         bpy.utils.register_class(item) 
@@ -199,14 +289,17 @@ def register():
     # 注册属性
     My_Properties()
 
-    print("register complex")
+    print("REGISTER COMPLEX") 
 
-
+# 注销
 def unregister():
     for item in classes:
-        bpy.utils.unregister_class(item)    
+        bpy.utils.unregister_class(item) 
 
-    print("see you")
+    del bpy.types.Scene.my_list
+    del bpy.types.Scene.active_index 
+
+    print("PHANTOM HAS RETURNED TO ITS ORIGINAL WORDL")
 
 
 
