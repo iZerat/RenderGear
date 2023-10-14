@@ -112,6 +112,10 @@ class RenderingGear_OT_ClearItem(bpy.types.Operator):
 
     def execute(self, context):
         bpy.context.scene.my_list.clear()
+
+        # 选中状态缺省制第一位
+        bpy.context.scene.active_index = 0
+        
         return{'FINISHED'}
 
 # 移动队列
@@ -142,6 +146,9 @@ class RenderingGear_OT_MoveItem(bpy.types.Operator):
 
         # 目标编号
         neighbor_index = context.scene.active_index + (-1 if self.direction == "UP" else 1)
+
+        if neighbor_index < 0 or neighbor_index >= len(context.scene.my_list):
+            return {"CANCELLED"}
 
         # 交换数据
         context.scene.my_list.move(active_index, neighbor_index)
@@ -230,8 +237,8 @@ class RenderingGear_PT_OperatorUI(bpy.types.Panel):
 
         subcol.operator("iz.rendering_move_item", text = "", icon = "TRIA_DOWN").direction = "DOWN"
         
-
-        if scene.active_index >= 0 and scene.my_list:
+        # 显示数据
+        if (scene.active_index >= 0 or scene.active_index < len(scene.my_list)) and scene.my_list:
             item = scene.my_list[scene.active_index]
             row = layout.row()
             row.prop(item, "start_frame", text = "开始帧")
