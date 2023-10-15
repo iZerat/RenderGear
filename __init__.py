@@ -201,10 +201,10 @@ def cmd_Run():
     return sentence
 
 
-# 定义关机函数
+# 定义判断是否要关机的函数
 def power_off():
     if bpy.context.scene.power_off_bool == True:
-        os.system("shutdown -r -t 600")
+        os.system("shutdown -r -t 600") # 关机操作
 
 
 
@@ -221,10 +221,11 @@ class RenderingGear_PT_OperatorUI(bpy.types.Panel):
         scene = context.scene
         layout = self.layout
 
-
+        # 标签
         row = layout.row()
         row.label(text = " --  渲染队列 -- ")
 
+        # 添加「清空列表」的按钮
         row = layout.row()
         row.operator("iz.rendering_clear_item", text = "清空列表", icon = "TRASH")
         
@@ -258,7 +259,7 @@ class RenderingGear_PT_OperatorUI(bpy.types.Panel):
         # 添加一个布尔属性，并将其绑定到单选框
         col.prop(context.scene, "power_off_bool", text = " 渲染完成后关机")
 
-        # 按钮
+        # 添加「渲染所有」的按钮
         row = layout.row()
         row.operator("iz.rendering_gear1", text = "渲染所有", icon = "CONSOLE")
 
@@ -272,12 +273,26 @@ class RenderingGear_OT_Operator1(bpy.types.Operator):
     bl_idname = 'iz.rendering_gear1'
     bl_label = 'RenderingGearOperator1'
 
-    # 判断用户是否有保存文件
+    
     def invoke(self, context, event):
         self.cmd = None
+
+        # 判断用户是否有保存文件
         if bpy.data.is_dirty:
             self.report({'ERROR'}, "文件未保存，请保存文件后再进行该操作")
             return {'FINISHED'}
+        
+        
+        # 判断用户所设置的结束帧数否都大于或等于开始帧
+        i = len(bpy.context.scene.my_list)
+        a = 0
+        while a != i:
+            if bpy.context.scene.my_list[a].end_frame >= bpy.context.scene.my_list[a].start_frame:
+                a = a + 1
+            else:
+                self.report({'ERROR'}, "请检查设定的结束帧是否都大于开始帧")
+                return {'FINISHED'}
+
         
         if not event.ctrl:
             return self.execute(context)
@@ -300,6 +315,7 @@ class RenderingGear_OT_Operator1(bpy.types.Operator):
             if return_code is not None:
                 # 渲染进程已结束
                 if return_code == 0:
+                    # 调用判断是否要关机的函数
                     power_off()
                 else:
                     print(f"后台渲染出错，错误代码 {return_code}")
@@ -345,11 +361,8 @@ def unregister():
     for item in classes:
         bpy.utils.unregister_class(item)
     
-
     del bpy.types.Scene.my_list
     del bpy.types.Scene.active_index 
-
-
 
     print("PHANTOM HAS RETURNED TO THEIR WORDL")
     
