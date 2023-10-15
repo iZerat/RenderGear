@@ -55,8 +55,9 @@ class MyItem(PropertyGroup):
 # 定义队列
 class RenderingGear_UL_Queue(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon_value, active_data, active_propname, index):
-
-        custom_icon = "DOCUMENTS"
+        
+        # 队列图标
+        custom_icon = "RENDER_RESULT"
 
         # 三种显示模式: 'DEFAULT', 'COMPACT', 'GRID'
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
@@ -162,6 +163,11 @@ class RenderingGear_OT_MoveItem(bpy.types.Operator):
 # 管理命令
 def cmd_Run():
 
+    # blender 的可执行文件路径
+    blender_pathA = bpy.app.binary_path
+    blender_pathB = blender_pathA.replace("\\", "\\\\")
+    blender_pathC = blender_pathB.replace(' ', '" "')
+
     # 当前 blender 工程文件的路径
     file_pathA = bpy.data.filepath
     file_pathB = file_pathA.replace("\\", "\\\\")
@@ -173,7 +179,8 @@ def cmd_Run():
     # 词集合  
     words =[
         "start", # 多一层终端
-        "blender -b", # 启动 Blneder 并让它在后台运行
+        blender_pathC, # 启动 Blneder
+        "-b", # 让它在后台运行
         file_pathB, # 填入导出路径
         "-E", # 渲染引擎
         bpy.context.scene.render.engine, # 选择用哪个渲染引擎
@@ -217,7 +224,7 @@ class RenderingGear_PT_OperatorUI(bpy.types.Panel):
 
 
         row = layout.row()
-        row.label(text = "渲染队列")
+        row.label(text = " --  渲染队列 -- ")
 
         row = layout.row()
         row.operator("iz.rendering_clear_item", text = "清空列表", icon = "TRASH")
@@ -233,8 +240,10 @@ class RenderingGear_PT_OperatorUI(bpy.types.Panel):
         # 位于右侧创建「删除」按钮
         subcol.operator("iz.rendering_delete_item", text = "", icon = "REMOVE")
 
+        # 位于右侧创建「上升」按钮
         subcol.operator("iz.rendering_move_item", text = "", icon = "TRIA_UP").direction = "UP"
 
+        # 位于右侧创建「下降」按钮
         subcol.operator("iz.rendering_move_item", text = "", icon = "TRIA_DOWN").direction = "DOWN"
         
         # 显示数据
@@ -256,7 +265,9 @@ class RenderingGear_PT_OperatorUI(bpy.types.Panel):
 
         pass
 
-        
+
+
+
 
 
 # 执行操作1
@@ -264,15 +275,29 @@ class RenderingGear_OT_Operator1(bpy.types.Operator):
     bl_idname = 'iz.rendering_gear1'
     bl_label = 'RenderingGearOperator1'
 
+    # 判断是否有保存文件
+    def invoke(self, context, event):
+        self.cmd = None
+        if bpy.data.is_dirty:
+            self.report({'ERROR'}, "文件未保存，请保存文件后再进行该操作")
+            return {"CANCELLED"}
+        
+        if not event.ctrl:
+            return self.execute(context)
+
+        return {'FINISHED'}
+            
+
     # 执行的内容
     def execute(self, context): 
 
         command = cmd_Run()
-        # os.system(command) # 给终端打命令
-
-        subprocess.check_output(command, shell=True)
-        
+        os.system(command) # 给终端打命令
+    
         return {'FINISHED'}
+
+    
+
     
 
 # 需要注册的类
@@ -285,6 +310,7 @@ classes = [
     RenderingGear_OT_ClearItem,
     RenderingGear_OT_MoveItem,
     RenderingGear_PT_OperatorUI,
+
    
 ]
 
@@ -301,12 +327,16 @@ def register():
 # 注销
 def unregister():
     for item in classes:
-        bpy.utils.unregister_class(item) 
+        bpy.utils.unregister_class(item)
+    
 
     del bpy.types.Scene.my_list
     del bpy.types.Scene.active_index 
 
-    print("PHANTOM HAS RETURNED TO ITS ORIGINAL WORDL")
+
+
+    print("PHANTOM HAS RETURNED TO THEIR WORDL")
+    
 
 
 
