@@ -11,7 +11,9 @@ bl_info = {
 
 import bpy
 import os
+import time
 import subprocess
+import threading
 from bpy.props import EnumProperty, BoolProperty, StringProperty, IntProperty, FloatProperty, PointerProperty, CollectionProperty
 from bpy.types import PropertyGroup, UIList, Operator, Panel
 
@@ -198,11 +200,8 @@ def cmd_Run():
 
     return sentence
 
-def GoRendering():
-    command = cmd_Run()
-    os.system(command) # 给终端打命令
-    return 1
 
+# 定义关机函数
 def power_off():
     if bpy.context.scene.power_off_bool == True:
         os.system("shutdown -r -t 600")
@@ -268,32 +267,49 @@ class RenderingGear_PT_OperatorUI(bpy.types.Panel):
 
 
 
-
-
 # 执行操作1
 class RenderingGear_OT_Operator1(bpy.types.Operator):
     bl_idname = 'iz.rendering_gear1'
     bl_label = 'RenderingGearOperator1'
 
-    # 判断是否有保存文件
+    # 判断用户是否有保存文件
     def invoke(self, context, event):
         self.cmd = None
         if bpy.data.is_dirty:
             self.report({'ERROR'}, "文件未保存，请保存文件后再进行该操作")
-            return {"CANCELLED"}
+            return {'FINISHED'}
         
         if not event.ctrl:
             return self.execute(context)
-
+        
         return {'FINISHED'}
             
 
     # 执行的内容
-    def execute(self, context): 
+    def execute(self, context):
 
         command = cmd_Run()
-        os.system(command) # 给终端打命令
-    
+        # os.system(command) # 给终端打命令
+
+        process1 = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+        while True:
+            # 查询后台渲染进程的返回值
+            return_code = process1.poll()
+
+            if return_code is not None:
+                # 渲染进程已结束
+                if return_code == 0:
+                    power_off()
+                else:
+                    print(f"后台渲染出错，错误代码 {return_code}")
+                break
+            else:
+                # 渲染进程仍在运行
+                line = process1.stdout.readline()
+                if line:
+                    print(line.decode("utf-8").strip())
+
         return {'FINISHED'}
 
     
