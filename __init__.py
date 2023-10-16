@@ -116,7 +116,7 @@ class RenderingGear_OT_ClearItem(bpy.types.Operator):
     def execute(self, context):
         bpy.context.scene.my_list.clear()
 
-        # 选中状态缺省制第一位
+        # 选中状态缺省至第一位
         bpy.context.scene.active_index = 0
         
         return{'FINISHED'}
@@ -127,13 +127,11 @@ class RenderingGear_OT_MoveItem(bpy.types.Operator):
     bl_label = 'RenderingGearMoveItem'
 
     # 控制移动的方向
-    
     items = [
         ("UP",'up','',1),
         ("DOWN",'down','',2)
     ]
 
-    # 控制移动方向
     direction: bpy.props.EnumProperty(items = items)
 
     @classmethod
@@ -150,6 +148,7 @@ class RenderingGear_OT_MoveItem(bpy.types.Operator):
         # 目标编号
         neighbor_index = context.scene.active_index + (-1 if self.direction == "UP" else 1)
 
+        # 如果所选的项是最顶部或最底部则取消操作
         if neighbor_index < 0 or neighbor_index >= len(context.scene.my_list):
             return {"CANCELLED"}
 
@@ -163,7 +162,10 @@ class RenderingGear_OT_MoveItem(bpy.types.Operator):
 
 
 # 管理命令
-def cmd_Run():
+def cmd_Run(current_queue):
+
+    start = bpy.context.scene.my_list[current_queue].start_frame
+    end = bpy.context.scene.my_list[current_queue].end_frame
 
     # blender 的可执行文件路径
     blender_pathA = bpy.app.binary_path
@@ -178,7 +180,7 @@ def cmd_Run():
     export_pathA = bpy.data.scenes["Scene"].render.filepath
     export_pathB = export_pathA.replace("\\","\\\\")
 
-    # 词集合  
+    # 词列表  
     words =[
         "start", # 多一层终端
         blender_pathC, # 启动 Blneder
@@ -186,23 +188,24 @@ def cmd_Run():
         file_pathB, # 填入导出路径
         "-E", # 渲染引擎
         bpy.context.scene.render.engine, # 选择用哪个渲染引擎
-        "-o",
+        "-o", # 路径
+        export_pathB, # 填入导出路径
+        "--frame-start",
+        str(start),
+        "--frame-end",
+        str(end),
+        "-a", # 渲染动画
     ]
 
-    # 输入导出路径
-    words.append(export_pathB)
-
-    # 渲染以上所有
-    words.append('-a')
 
     # 将列表里的词组成一行命令
     sentence = ' '.join(words)
 
-    return sentence
+    return sentence # 将这行命令作为这个函数的返回值
 
 
 # 定义判断是否要关机的函数
-def power_off():
+def is_power_off():
     if bpy.context.scene.power_off_bool == True:
         os.system("shutdown -r -t 600") # 关机操作
 
@@ -303,28 +306,44 @@ class RenderingGear_OT_Operator1(bpy.types.Operator):
     # 执行的内容
     def execute(self, context):
 
-        command = cmd_Run()
-        # os.system(command) # 给终端打命令
+        total_queue = len(bpy.context.scene.my_list) # 总共的队列数
+        current_queue = 0 # 当前所执行到的队列编号
 
-        process1 = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        self.report({'INFO'}, "本次操作总共需要渲染的队列次数为 " + str(total_queue) + " 个")
+        print("本次操作总共需要渲染的队列次数为 " + str(total_queue) + " 个")
 
-        while True:
-            # 查询后台渲染进程的返回值
-            return_code = process1.poll()
+        while current_queue != total_queue: # 如果当前所执行到的队列编号没有达到总共的队列数时，则执行一下循环
 
-            if return_code is not None:
-                # 渲染进程已结束
-                if return_code == 0:
-                    # 调用判断是否要关机的函数
-                    power_off()
+            command = cmd_Run(current_queue) # 传入当前所执行到的队列编号
+
+            # 创建一个进程，并执行渲染命令
+            process1 = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE) 
+
+            # 检测当前进程状态
+            while True: 
+                # 查询后台渲染进程的返回值
+                return_code = process1.poll()
+
+                if return_code is not None:
+                    # 如果渲染进程已结束
+                    if return_code == 0:                     
+                        self.report({'INFO'}, "第 " + str(current_queue + 1) + " 个队列已渲染完成")
+                        print("第 " + str(current_queue + 1) + " 个队列已渲染完成")
+                    else:
+                        print(f"后台渲染出错，错误代码 {return_code}")
+                    break
                 else:
-                    print(f"后台渲染出错，错误代码 {return_code}")
-                break
-            else:
-                # 渲染进程仍在运行
-                line = process1.stdout.readline()
-                if line:
-                    print(line.decode("utf-8").strip())
+                    # 渲染进程仍在运行
+                    line = process1.stdout.readline()
+                    if line:
+                        print(line.decode("utf-8").strip())
+
+            current_queue = current_queue + 1
+
+        self.report({'INFO'}, "所有队列都已经完成渲染，本次操作共计处理了 " + str(total_queue) + " 个队列")
+        print("所有队列都已经完成渲染，本次操作共计处理了 " + str(total_queue) + " 个队列")
+
+        is_power_off()
 
         return {'FINISHED'}
 
