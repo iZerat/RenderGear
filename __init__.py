@@ -204,6 +204,49 @@ def cmd_Run(current_queue):
     return sentence # 将这行命令作为这个函数的返回值
 
 
+
+
+# 定义渲染函数
+def render(self,current_queue,total_queue):
+
+    print("进入线程1")
+
+    while current_queue != total_queue: # 如果当前所执行到的队列编号没有达到总共的队列数时，则执行一下循环
+
+        command = cmd_Run(current_queue) # 传入当前所执行到的队列编号
+
+        # 创建一个进程，并执行渲染命令
+        process1 = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE) 
+
+        
+        return_code = process1.poll()
+
+        if return_code is not None:
+            # 如果渲染进程已结束
+            if return_code == 0:                     
+                self.report({'INFO'}, "第 " + str(current_queue + 1) + " 个队列已渲染完成")
+                print("第 " + str(current_queue + 1) + " 个队列已渲染完成")
+            else:
+                print(f"后台渲染出错，错误代码 {return_code}")
+            break
+        else:
+            # 渲染进程仍在运行
+            line = process1.stdout.readline()
+            if line:
+                print(line.decode("utf-8").strip())
+
+        current_queue = current_queue + 1
+
+
+
+
+
+
+
+
+
+
+
 # 定义判断是否要关机的函数
 def is_power_off():
     if bpy.context.scene.power_off_bool == True:
@@ -268,6 +311,7 @@ class RenderingGear_PT_OperatorUI(bpy.types.Panel):
 
         pass
 
+# 定时器
 
 
 
@@ -312,33 +356,8 @@ class RenderingGear_OT_Operator1(bpy.types.Operator):
         self.report({'INFO'}, "本次操作总共需要渲染的队列次数为 " + str(total_queue) + " 个")
         print("本次操作总共需要渲染的队列次数为 " + str(total_queue) + " 个")
 
-        while current_queue != total_queue: # 如果当前所执行到的队列编号没有达到总共的队列数时，则执行一下循环
-
-            command = cmd_Run(current_queue) # 传入当前所执行到的队列编号
-
-            # 创建一个进程，并执行渲染命令
-            process1 = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE) 
-
-            # 检测当前进程状态
-            while True: 
-                # 查询后台渲染进程的返回值
-                return_code = process1.poll()
-
-                if return_code is not None:
-                    # 如果渲染进程已结束
-                    if return_code == 0:                     
-                        self.report({'INFO'}, "第 " + str(current_queue + 1) + " 个队列已渲染完成")
-                        print("第 " + str(current_queue + 1) + " 个队列已渲染完成")
-                    else:
-                        print(f"后台渲染出错，错误代码 {return_code}")
-                    break
-                else:
-                    # 渲染进程仍在运行
-                    line = process1.stdout.readline()
-                    if line:
-                        print(line.decode("utf-8").strip())
-
-            current_queue = current_queue + 1
+        task1 = threading.Thread(target = render,args = (self, current_queue, total_queue, ))
+        task1.start()
 
         self.report({'INFO'}, "所有队列都已经完成渲染，本次操作共计处理了 " + str(total_queue) + " 个队列")
         print("所有队列都已经完成渲染，本次操作共计处理了 " + str(total_queue) + " 个队列")
