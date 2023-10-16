@@ -19,7 +19,7 @@ from bpy.props import EnumProperty, BoolProperty, StringProperty, IntProperty, F
 from bpy.types import PropertyGroup, UIList, Operator, Panel
 
 
-class MyItem(PropertyGroup):
+class MyItem(bpy.types.PropertyGroup):
 
     my_item_name:StringProperty(
         name = "my_item_name",
@@ -63,7 +63,7 @@ def My_Properties():
 
     # 用于判断是否要关机的布尔值
     bpy.types.Scene.power_off_bool = bpy.props.BoolProperty(
-        name="Powwer off Bool",
+        name="Power off Bool",
         description="Boolean value used to determine whether to shut down",
         default= False
     )
@@ -89,11 +89,21 @@ class RenderingGear_UL_Queue(bpy.types.UIList):
 class RenderingGear_OT_CreateItem(bpy.types.Operator):
     bl_idname = 'iz.rendering_create_item'
     bl_label = 'RenderingGearCreateItem'
-
+    
+    @classmethod
+    def poll(cls, context):
+        return True
 
     def execute(self, context):
 
         context.scene.my_list.add()
+
+        # 对新建的队列的开始帧和结束帧初始化
+        i = len(bpy.context.scene.my_list) - 1 # 需要操作的项
+
+        # 同步成当成场景所设置的开始帧与结束帧
+        bpy.context.scene.my_list[i].start_frame =  bpy.context.scene.frame_start
+        bpy.context.scene.my_list[i].end_frame =  bpy.context.scene.frame_end
 
         return{'FINISHED'}
 
