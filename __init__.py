@@ -1,11 +1,12 @@
 bl_info = {
-    "name" : "RenderingGear",
+    "name" : "RenderGear",
     "author" : "iZerat",
-    "description" : "",
+    "description" : "后台多队列自动渲染插件，绿皮科技，震撼人心",
     "blender" : (2, 80, 0),
     "version" : (0, 0, 1),
     "location" : "",
     "warning" : "",
+    "doc_url" : "https://github.com/iZerat/RenderGear",
     "category" : "Render"
 }
 
@@ -18,21 +19,6 @@ from bpy.props import EnumProperty, BoolProperty, StringProperty, IntProperty, F
 from bpy.types import PropertyGroup, UIList, Operator, Panel
 
 
-# 定义属性函数
-def My_Properties():
-
-    # list 数据
-    bpy.types.Scene.my_list = CollectionProperty(type = MyItem)
-
-    # 当前选中的下标
-    bpy.types.Scene.active_index = bpy.props.IntProperty(name = "Index for my_list", default = 0)
-
-    bpy.types.Scene.power_off_bool = bpy.props.BoolProperty(
-        name="Powwer off Bool",
-        description="Boolean value used to determine whether to shut down",
-        default= False
-    )
-
 class MyItem(PropertyGroup):
 
     my_item_name:StringProperty(
@@ -43,15 +29,44 @@ class MyItem(PropertyGroup):
     start_frame:IntProperty(
         name = "start_frame",
         default = 0,
-        min = 0
+        min = 0,
+        update=lambda self,
+        context: self.update_end_frame(context)
         )
     
     end_frame:IntProperty(
         name = "end_frame",
         default = 0,
-        min = 0
+        min = 0,
+        update=lambda self,
+        context: self.update_start_frame(context)
         )
+    
+    # 更新 start_frame 的值
+    def update_start_frame(self, context):
+        if self.start_frame > self.end_frame:
+            self.start_frame = self.end_frame
 
+    # 更新 end_frame 的值
+    def update_end_frame(self, context):
+        if self.end_frame < self.start_frame:
+            self.end_frame = self.start_frame
+
+# 定义属性函数
+def My_Properties():
+
+    # list 数据
+    bpy.types.Scene.my_list = CollectionProperty(type = MyItem)
+
+    # 当前选中的下标
+    bpy.types.Scene.active_index = bpy.props.IntProperty(name = "Index for my_list", default = 0)
+
+    # 用于判断是否要关机的布尔值
+    bpy.types.Scene.power_off_bool = bpy.props.BoolProperty(
+        name="Powwer off Bool",
+        description="Boolean value used to determine whether to shut down",
+        default= False
+    )
 
 
 # 定义队列
@@ -137,9 +152,8 @@ class RenderingGear_OT_MoveItem(bpy.types.Operator):
     @classmethod
     def poll(cls, context):
         return True
-    
 
-    
+
     def execute(self, context):
 
         # 当前所选的编号
@@ -209,8 +223,6 @@ def cmd_Run(current_queue):
 # 定义渲染函数
 def render(self,current_queue,total_queue):
 
-    print("进入线程1")
-
     while current_queue != total_queue: # 如果当前所执行到的队列编号没有达到总共的队列数时，则执行一下循环
 
         command = cmd_Run(current_queue) # 传入当前所执行到的队列编号
@@ -218,7 +230,6 @@ def render(self,current_queue,total_queue):
         # 创建一个进程，并执行渲染命令
         process1 = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE) 
 
-        
         return_code = process1.poll()
 
         if return_code is not None:
@@ -237,12 +248,7 @@ def render(self,current_queue,total_queue):
 
         current_queue = current_queue + 1
 
-
-
-
-
-
-
+    is_power_off() # 判断是否要关机
 
 
 
@@ -250,7 +256,7 @@ def render(self,current_queue,total_queue):
 # 定义判断是否要关机的函数
 def is_power_off():
     if bpy.context.scene.power_off_bool == True:
-        os.system("shutdown -r -t 600") # 关机操作
+        os.system("shutdown -r -t 300") # 关机操作
 
 
 
@@ -260,7 +266,7 @@ class RenderingGear_PT_OperatorUI(bpy.types.Panel):
     bl_label = '后台自动队列渲染'
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = '（ : '
+    bl_category = 'RenderGear'
 
     def draw(self, context):
         
@@ -311,15 +317,11 @@ class RenderingGear_PT_OperatorUI(bpy.types.Panel):
 
         pass
 
-# 定时器
-
-
 
 # 执行操作1
 class RenderingGear_OT_Operator1(bpy.types.Operator):
     bl_idname = 'iz.rendering_gear1'
     bl_label = 'RenderingGearOperator1'
-
     
     def invoke(self, context, event):
         self.cmd = None
@@ -345,7 +347,6 @@ class RenderingGear_OT_Operator1(bpy.types.Operator):
             return self.execute(context)
         
         return {'FINISHED'}
-            
 
     # 执行的内容
     def execute(self, context):
@@ -353,22 +354,16 @@ class RenderingGear_OT_Operator1(bpy.types.Operator):
         total_queue = len(bpy.context.scene.my_list) # 总共的队列数
         current_queue = 0 # 当前所执行到的队列编号
 
-        self.report({'INFO'}, "本次操作总共需要渲染的队列次数为 " + str(total_queue) + " 个")
-        print("本次操作总共需要渲染的队列次数为 " + str(total_queue) + " 个")
+        self.report({'INFO'}, "本次操作总共需要渲染的队列次数为 " + str(total_queue) + " 个，开始执行后台渲染")
+        print("本次操作总共需要渲染的队列次数为 " + str(total_queue) + " 个，开始执行后台渲染")
 
+        # 创建线程，并且传参
         task1 = threading.Thread(target = render,args = (self, current_queue, total_queue, ))
-        task1.start()
 
-        self.report({'INFO'}, "所有队列都已经完成渲染，本次操作共计处理了 " + str(total_queue) + " 个队列")
-        print("所有队列都已经完成渲染，本次操作共计处理了 " + str(total_queue) + " 个队列")
-
-        is_power_off()
+        task1.start() # 启用线程
 
         return {'FINISHED'}
-
-    
-
-    
+ 
 
 # 需要注册的类
 classes = [
@@ -381,7 +376,6 @@ classes = [
     RenderingGear_OT_MoveItem,
     RenderingGear_PT_OperatorUI,
 
-   
 ]
 
 # 注册
@@ -399,8 +393,10 @@ def unregister():
     for item in classes:
         bpy.utils.unregister_class(item)
     
+    # 删除属性
     del bpy.types.Scene.my_list
-    del bpy.types.Scene.active_index 
+    del bpy.types.Scene.active_index
+    del bpy.types.Scene.power_off_bool
 
     print("PHANTOM HAS RETURNED TO THEIR WORDL")
     
