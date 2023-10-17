@@ -1,7 +1,7 @@
 bl_info = {
     "name" : "RenderGear",
     "author" : "iZerat",
-    "description" : "后台多队列自动渲染插件，绿皮科技，震撼人心",
+    "description" : "Background multi queue automatic rendering plugin",
     "blender" : (2, 80, 0),
     "version" : (0, 0, 1),
     "location" : "",
@@ -23,7 +23,7 @@ class MyItem(bpy.types.PropertyGroup):
 
     my_item_name:StringProperty(
         name = "my_item_name",
-        default = "未设置队列"
+        default = "untitled queue"
         )
     
     start_frame:IntProperty(
@@ -78,7 +78,7 @@ class RenderingGear_UL_Queue(bpy.types.UIList):
 
         # 三种显示模式: 'DEFAULT', 'COMPACT', 'GRID'
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
-            layout.label(text = "帧：" + str(item.start_frame) + " - " + str(item.end_frame), translate = False, icon = custom_icon)
+            layout.label(text = "Frame：" + str(item.start_frame) + " - " + str(item.end_frame), translate = False, icon = custom_icon)
 
         elif self.layout_type in {'GRID'}:
             layout.alignment = 'CENTER'
@@ -99,14 +99,13 @@ class RenderingGear_OT_CreateItem(bpy.types.Operator):
         context.scene.my_list.add()
 
         # 对新建的队列的开始帧和结束帧初始化
-        i = len(bpy.context.scene.my_list) - 1 # 需要操作的项
+        i = len(bpy.context.scene.my_list) - 1   # 需要操作的项
 
         # 同步成当成场景所设置的开始帧与结束帧
         bpy.context.scene.my_list[i].start_frame =  bpy.context.scene.frame_start
         bpy.context.scene.my_list[i].end_frame =  bpy.context.scene.frame_end
 
         return{'FINISHED'}
-
 
 # 删除所选队列
 class RenderingGear_OT_DeleteItem(bpy.types.Operator):
@@ -141,7 +140,7 @@ class RenderingGear_OT_ClearItem(bpy.types.Operator):
     def execute(self, context):
         bpy.context.scene.my_list.clear()
 
-        # 选中状态缺省至第一位
+        # 将选中状态缺省至第一位
         bpy.context.scene.active_index = 0
         
         return{'FINISHED'}
@@ -185,7 +184,9 @@ class RenderingGear_OT_MoveItem(bpy.types.Operator):
         return{'FINISHED'}
 
 
-# 管理命令
+
+
+# 管理渲染命令
 def cmd_Run(current_queue):
 
     start = bpy.context.scene.my_list[current_queue].start_frame
@@ -206,7 +207,7 @@ def cmd_Run(current_queue):
 
     # 词列表  
     words =[
-        "start", # 多一层终端
+        "start", # 打开多一层终端
         blender_pathC, # 启动 Blneder
         "-b", # 让它在后台运行
         file_pathB, # 填入导出路径
@@ -214,10 +215,10 @@ def cmd_Run(current_queue):
         bpy.context.scene.render.engine, # 选择用哪个渲染引擎
         "-o", # 路径
         export_pathB, # 填入导出路径
-        "--frame-start",
-        str(start),
-        "--frame-end",
-        str(end),
+        "--frame-start", # 开始帧
+        str(start), # 填入当前渲染的开始帧
+        "--frame-end", # 结束帧
+        str(end), # 填入当前渲染的结束帧
         "-a", # 渲染动画
     ]
 
@@ -226,8 +227,6 @@ def cmd_Run(current_queue):
     sentence = ' '.join(words)
 
     return sentence # 将这行命令作为这个函数的返回值
-
-
 
 
 # 定义渲染函数
@@ -261,8 +260,6 @@ def render(self,current_queue,total_queue):
     is_power_off() # 判断是否要关机
 
 
-
-
 # 定义判断是否要关机的函数
 def is_power_off():
     if bpy.context.scene.power_off_bool == True:
@@ -270,10 +267,11 @@ def is_power_off():
 
 
 
+
 # 侧边栏
 class RenderingGear_PT_OperatorUI(bpy.types.Panel):
     bl_idname = 'iz.rendering_gear_ui'
-    bl_label = '后台自动队列渲染'
+    bl_label = 'Background automatic queue rendering'
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = 'RenderGear'
@@ -285,11 +283,11 @@ class RenderingGear_PT_OperatorUI(bpy.types.Panel):
 
         # 标签
         row = layout.row()
-        row.label(text = " --  渲染队列 -- ")
+        row.label( text = " --  Render Queue -- ")
 
         # 添加「清空列表」的按钮
         row = layout.row()
-        row.operator("iz.rendering_clear_item", text = "清空列表", icon = "TRASH")
+        row.operator("iz.rendering_clear_item", text = "Clear List", icon = "TRASH")
         
         # 显示列表
         row = layout.row()
@@ -312,20 +310,22 @@ class RenderingGear_PT_OperatorUI(bpy.types.Panel):
         if (scene.active_index >= 0 or scene.active_index < len(scene.my_list)) and scene.my_list:
             item = scene.my_list[scene.active_index]
             row = layout.row()
-            row.prop(item, "start_frame", text = "开始帧")
-            row.prop(item, "end_frame", text = "结束帧")
+            row.prop(item, "start_frame", text = "Start")
+            row.prop(item, "end_frame", text = "End")
 
         # 创建一个列来放置单选框
         col = layout.column()
 
         # 添加一个布尔属性，并将其绑定到单选框
-        col.prop(context.scene, "power_off_bool", text = " 渲染完成后关机")
+        col.prop(context.scene, "power_off_bool", text = " Shutdown after rendering is finished")
 
         # 添加「渲染所有」的按钮
         row = layout.row()
-        row.operator("iz.rendering_gear1", text = "渲染所有", icon = "CONSOLE")
+        row.operator("iz.rendering_gear1", text = "Render All", icon = "CONSOLE")
 
         pass
+
+
 
 
 # 执行操作1
@@ -338,7 +338,7 @@ class RenderingGear_OT_Operator1(bpy.types.Operator):
 
         # 判断用户是否有保存文件
         if bpy.data.is_dirty:
-            self.report({'ERROR'}, "文件未保存，请保存文件后再进行该操作")
+            self.report({'ERROR'}, "The file has not been saved. Please save the file before proceeding with this operation")
             return {'FINISHED'}
         
         
@@ -349,7 +349,7 @@ class RenderingGear_OT_Operator1(bpy.types.Operator):
             if bpy.context.scene.my_list[a].end_frame >= bpy.context.scene.my_list[a].start_frame:
                 a = a + 1
             else:
-                self.report({'ERROR'}, "请检查设定的结束帧是否都大于开始帧")
+                self.report({'ERROR'}, "Please check if the set end frame is greater than the start frame")
                 return {'FINISHED'}
 
         
@@ -373,7 +373,9 @@ class RenderingGear_OT_Operator1(bpy.types.Operator):
         task1.start() # 启用线程
 
         return {'FINISHED'}
- 
+
+
+
 
 # 需要注册的类
 classes = [
