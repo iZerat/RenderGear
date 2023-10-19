@@ -364,8 +364,8 @@ class RenderingGear_OT_Operator1(bpy.types.Operator):
         total_queue = len(bpy.context.scene.my_list) # 总共的队列数
         current_queue = 0 # 当前所执行到的队列编号
 
-        self.report({'INFO'}, "本次操作总共需要渲染的队列次数为 " + str(total_queue) + " 个，开始执行后台渲染")
-        print("本次操作总共需要渲染的队列次数为 " + str(total_queue) + " 个，开始执行后台渲染")
+        self.report({'INFO'}, "The total number of queues is " + str(total_queue) + " , Start performing background rendering")
+        print("The total number of queues is " + str(total_queue) + " , Start performing background rendering")
 
         # 创建线程，并且传参
         task1 = threading.Thread(target = render,args = (self, current_queue, total_queue, ))
@@ -373,8 +373,6 @@ class RenderingGear_OT_Operator1(bpy.types.Operator):
         task1.start() # 启用线程
 
         return {'FINISHED'}
-
-
 
 
 # 需要注册的类
@@ -411,8 +409,3 @@ def unregister():
     del bpy.types.Scene.power_off_bool
 
     print("PHANTOM HAS RETURNED TO THEIR WORDL")
-    
-
-
-
-
